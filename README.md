@@ -9,6 +9,7 @@ WidevineDotnet can easily be deployed to Azure Web Apps, and we get Azure wildca
 ## Table of Contents
 -  **[Release notes](CHANGELOG.md)**
 -  **[How to deploy to Azure Web Apps](https://docs.microsoft.com/en-us/azure/app-service/app-service-web-get-started-dotnet)**
+-  **[ASP.NET Core Logging](https://www.youtube.com/watch?v=icwD6xkyrsc)**
 -  **[How to become a Widevine Implementation Partner (CWIP)](https://www.widevine.com/getting_started.html)**
 -  **[Widevine DRM Getting Started](https://storage.googleapis.com/wvdocs/Widevine_DRM_Getting_Started.pdf)**
 -  **[Widevine DRM Proxy Integration](https://storage.googleapis.com/wvdocs/Widevine_DRM_Proxy_Integration.pdf)**
