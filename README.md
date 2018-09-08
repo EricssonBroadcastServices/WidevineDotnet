@@ -1,5 +1,5 @@
 # WidevineDotnet
-Reference Widevine DRM proxy built to run via ASP.NET Core implementation.
+Open-Source Reference Widevine DRM proxy built to run via ASP.NET Core implementation.
 The Proxy accepts POST requests from CDM players using the 
 Widevine License Exchange protocol.
 
