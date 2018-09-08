@@ -10,13 +10,13 @@ namespace WidevineDotnet
         internal static string Base64Encode(string plainText)
         {
             var plainTextBytes = System.Text.Encoding.UTF8.GetBytes(plainText);
-            return System.Convert.ToBase64String(plainTextBytes);
+            return Convert.ToBase64String(plainTextBytes);
         }
 
 
         internal static string Base64Decode(string base64EncodedData)
         {
-            var base64EncodedBytes = System.Convert.FromBase64String(base64EncodedData);
+            var base64EncodedBytes = Convert.FromBase64String(base64EncodedData);
             return System.Text.Encoding.UTF8.GetString(base64EncodedBytes);
         }
 
@@ -89,8 +89,8 @@ namespace WidevineDotnet
             if (paddning.Length > 0)
             {
                 hash_paddning = new byte[hash.Length + paddning.Length];
-                System.Buffer.BlockCopy(hash, 0, hash_paddning, 0, hash.Length);
-                System.Buffer.BlockCopy(paddning, 0, hash_paddning, hash.Length, paddning.Length);
+                Buffer.BlockCopy(hash, 0, hash_paddning, 0, hash.Length);
+                Buffer.BlockCopy(paddning, 0, hash_paddning, hash.Length, paddning.Length);
             }
             return hash_paddning;
         }

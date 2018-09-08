@@ -77,7 +77,7 @@ namespace WidevineDotnet.Controllers
             }
 
             byte[] responseBytes = ProcessLicenseResponse(response);
-            if (responseBytes.Length == 0)
+            if (responseBytes.Length == 0)  // "PARSE_ONLY request
             {
                 return Content(response, "application/x-javascript");
             }
@@ -184,16 +184,7 @@ namespace WidevineDotnet.Controllers
             JObject responseObj = JObject.Parse(response);
             if (responseObj.ContainsKey("status") && responseObj["status"].ToString() == "OK")
             {
-                // Trace devices not sending security_level
-                if (responseObj.ContainsKey("message_type") &&
-                    responseObj["message_type"].ToString() != "SERVICE_CERTIFICATE")
-                {
-                    if (!responseObj.ContainsKey("security_level") ||
-                        string.IsNullOrEmpty(responseObj["security_level"].ToString()))
-                    {
-                        _logger.LogError("No security_level");
-                    }
-                }
+                Trace_devices_not_sending_security_level(responseObj);
 
                 if (responseObj.ContainsKey("license"))
                 {
@@ -239,6 +230,23 @@ namespace WidevineDotnet.Controllers
             byte[] signature = Util.EncryptAes(hash, _KEY, _IV);
             string signatureBase64 = Convert.ToBase64String(signature);
             return signatureBase64;
+        }
+
+        /// <summary>
+        /// Some devices don't send security level, trace this 
+        /// </summary>
+        /// <param name="responseObj"></param>
+        private void Trace_devices_not_sending_security_level(JObject responseObj)
+        {
+            if (responseObj.ContainsKey("message_type") &&
+                                responseObj["message_type"].ToString() != "SERVICE_CERTIFICATE")
+            {
+                if (!responseObj.ContainsKey("security_level") ||
+                    string.IsNullOrEmpty(responseObj["security_level"].ToString()))
+                {
+                    _logger.LogError("No security_level");
+                }
+            }
         }
     }
 }
