@@ -35,7 +35,7 @@ namespace WidevineDotnet
         }
 
 
-        internal static byte[] EncryptStringToBytes_Aes(byte[] plain, byte[] Key, byte[] IV)
+        internal static byte[] EncryptAes(byte[] plain, byte[] Key, byte[] IV)
         {
             byte[] encrypted;
 
@@ -59,7 +59,7 @@ namespace WidevineDotnet
         }
 
 
-        internal static byte[] HexadecimalStringToByteArray(string input)
+        internal static byte[] HexStringToByteArray(string input)
         {
             var outputLength = input.Length / 2;
             var output = new byte[outputLength];

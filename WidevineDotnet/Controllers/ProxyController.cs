@@ -16,27 +16,33 @@ namespace WidevineDotnet.Controllers
     public class ProxyController : ControllerBase
     {
         private readonly ILogger _logger;
-        private IConfiguration _configuration;
+        private readonly IConfiguration _configuration;
+
+        // Provider Information 
+        // Replace PROVIDER and _KEY and _IV with your provider credentials in appsettings
+        private readonly byte[] _KEY;
+        private readonly byte[] _IV;
+        private readonly string _PROVIDER;
+
+        // License Values 
+        private readonly string _LICENSE_SERVER_URL;
+        private readonly string _ALLOWED_TRACK_TYPES;
+
+        // From query string if applied
+        private string contentId = "";
+        private string keyId = "";
 
         public ProxyController(ILogger<ProxyController> logger, IConfiguration Configuration)
         {
             _logger = logger;
             _configuration = Configuration;
+
+            _KEY = Util.HexStringToByteArray(_configuration["PROVIDER_KEY"]);
+            _IV = Util.HexStringToByteArray(_configuration["PROVIDER_IV"]);
+            _PROVIDER = _configuration["PROVIDER"];
+            _LICENSE_SERVER_URL = _configuration["LICENSE_SERVER_URL_TEST"];
+            _ALLOWED_TRACK_TYPES = _configuration["ALLOWED_TRACK_TYPES"];
         }
-
-        // Provider Information 
-        // Replace PROVIDER and _KEY and _IV with your provider credentials
-        private readonly byte[] _KEY = Util.HexadecimalStringToByteArray("1ae8ccd0e7985cc0b6203a55855a1034afc252980e970ca90e5202689f947ab9");
-        private readonly byte[] _IV = Util.HexadecimalStringToByteArray("d58ce954203b7c9a9a9d467f59839249");
-        private const string PROVIDER = "widevine_test";
-
-        // License Values 
-        private const string LICENSE_SERVER_URL = "https://license.uat.widevine.com/cenc/getlicense";
-        private const string ALLOWED_TRACK_TYPES = "SD_HD";
-
-        private bool parseonly = false;
-        private string contentId = "";
-        private string keyId = "";
 
 
         // GET proxy
@@ -53,36 +59,25 @@ namespace WidevineDotnet.Controllers
             string payload = Util.ConvertToBase64(HttpContext.Request.Body);
             if (string.IsNullOrEmpty(payload))
             {
-                _logger.LogError("BadRequest, body is empty");
-                return BadRequest("BadRequest, body is empty");
+                _logger.LogError("BadRequest", "body is empty");
+                return BadRequest("body is empty");
             }
-            this.parseonly = false;
-            this.contentId = "";
-            this.keyId = "";
-            if (Request.Query.ContainsKey("parseonly"))
-            {
-                this.parseonly = true;
-            }
-            if (Request.Query.ContainsKey("contentId"))
-            {
-                this.contentId = Request.Query["contentId"].ToString();
-            }
-            if (Request.Query.ContainsKey("keyId"))
-            {
-                this.keyId = Request.Query["keyId"].ToString();
-            }
+            contentId = Request.Query.ContainsKey("contentId") ?
+                Request.Query["contentId"].ToString() : "";
+            keyId = Request.Query.ContainsKey("keyId") ?
+                Request.Query["keyId"].ToString() : "";
 
             string response;
             if (payload.Length < 50)
             {
-                response = await this.SendRequest(this.BuildCertificateRequest(payload));
+                response = await SendRequest(BuildCertificateRequest(payload));
             }
             else
             {
-                response = await this.SendRequest(this.BuildLicenseServerRequest(payload));
+                response = await SendRequest(BuildLicenseServerRequest(payload));
             }
 
-            byte[] responseBytes = this.ProcessLicenseResponse(response);
+            byte[] responseBytes = ProcessLicenseResponse(response);
             if (responseBytes.Length == 0)
             {
                 return Content(response, "application/x-javascript");
@@ -93,45 +88,49 @@ namespace WidevineDotnet.Controllers
             }
         }
 
-
+        /// <summary>
+        /// Send HTTP request to Widevine.
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
         private async Task<string> SendRequest(string request)
         {
-            // Send HTTP request to Widevine 
             HttpClient client = new HttpClient();
-            var url = ProxyController.LICENSE_SERVER_URL + "/" + ProxyController.PROVIDER;
+            var url = _LICENSE_SERVER_URL + "/" + _PROVIDER;
             HttpResponseMessage response = await client.PostAsync(url, new StringContent(request));
-            string payload;
-            if (response.IsSuccessStatusCode)
+            string payload = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
             {
-                payload = await response.Content.ReadAsStringAsync();
-            }
-            else
-            {
-                string msg = await response.Content.ReadAsStringAsync();
-                _logger.LogError(msg);
-                throw new Exception(response.StatusCode + " message:" + msg);
+                _logger.LogError("SendRequest", "StatusCode: " + response.StatusCode, payload);
+                throw new Exception("SendRequest StatusCode: " + response.StatusCode);
             }
             return payload;
         }
 
-
+        /// <summary>
+        /// Builds JSON requests to be sent to the license server.
+        /// </summary>
+        /// <param name="payload"></param>
+        /// <returns></returns>
         private string BuildCertificateRequest(string payload)
         {
-            // Builds JSON requests to be sent to the license server. 
-            string message = this.BuildCertificateMessage(payload);
+            string message = BuildCertificateMessage(payload);
             var certificate_request = new
             {
                 request = Util.Base64Encode(message),
-                signature = this.GenerateSignature(message),
-                signer = ProxyController.PROVIDER
+                signature = GenerateSignature(message),
+                signer = _PROVIDER
             };
             return Util.JsonDump(certificate_request);
         }
 
-
+        /// <summary>
+        /// Build a certificate request to be sent to Widevine Service. 
+        /// </summary>
+        /// <param name="payload"></param>
+        /// <returns></returns>
         private string BuildCertificateMessage(string payload)
         {
-            // Build a certificate request to be sent to Widevine Service. 
             var request = new
             {
                 payload = payload
@@ -139,50 +138,54 @@ namespace WidevineDotnet.Controllers
             return Util.JsonDump(request);
         }
 
-
+        /// <summary>
+        /// Builds JSON requests to be sent to the license server. 
+        /// </summary>
+        /// <param name="payload"></param>
+        /// <returns></returns>
         private string BuildLicenseServerRequest(string payload)
         {
-            // Builds JSON requests to be sent to the license server. 
-            string message = this.BuildLicenseMessage(payload);
+            string message = BuildLicenseMessage(payload);
             var license_server_request = new
             {
                 request = Util.Base64Encode(message),
-                signature = this.GenerateSignature(message),
-                signer = ProxyController.PROVIDER
+                signature = GenerateSignature(message),
+                signer = _PROVIDER
             };
             return Util.JsonDump(license_server_request);
         }
 
-
+        /// <summary>
+        /// Build a license request to be sent to Widevine Service. 
+        /// </summary>
+        /// <param name="payload"></param>
+        /// <returns></returns>
         private string BuildLicenseMessage(string payload)
         {
-            string contentId64 = "";
-            if (!string.IsNullOrEmpty(this.contentId))
-            {
-                contentId64 = Util.Base64Encode(this.contentId);
-            }
-
-            // Build a license request to be sent to Widevine Service. 
+            string contentId64 = string.IsNullOrEmpty(contentId) ? "" : Util.Base64Encode(contentId);
             var request = new
             {
                 payload = payload,
-                provider = ProxyController.PROVIDER,
-                allowed_track_types = ProxyController.ALLOWED_TRACK_TYPES,
-                parse_only = this.parseonly,
+                provider = _PROVIDER,
+                allowed_track_types = _ALLOWED_TRACK_TYPES,
+                parse_only = Request.Query.ContainsKey("parseonly"),
                 content_id = contentId64
             };
             return Util.JsonDump(request);
         }
 
-
+        /// <summary>
+        /// Decode License Response and pass to player.
+        /// </summary>
+        /// <param name="response"></param>
+        /// <returns></returns>
         private byte[] ProcessLicenseResponse(string response)
         {
-            // Decode License Response and pass to player 
-            _logger.LogInformation("license_response", response);
+            _logger.LogInformation("License response", response);
             JObject responseObj = JObject.Parse(response);
-            if (responseObj["status"].ToString() == "OK")
+            if (responseObj.ContainsKey("status") && responseObj["status"].ToString() == "OK")
             {
-                //Trace devices that not send security_level
+                // Trace devices not sending security_level
                 if (responseObj.ContainsKey("message_type") &&
                     responseObj["message_type"].ToString() != "SERVICE_CERTIFICATE")
                 {
@@ -200,25 +203,28 @@ namespace WidevineDotnet.Controllers
                 }
                 else
                 {
-                    //"PARSE_ONLY request, no 'license' found."
+                    // "PARSE_ONLY request, no 'license' found."
                     return new byte[] { };
                 }
             }
-            _logger.LogInformation("Widevine error", response);
-            throw new Exception("Widevine error" + response);
+            _logger.LogError("ProcessLicenseResponse Status not OK", response);
+            throw new Exception("ProcessLicenseResponse Status not OK");
         }
 
-
+        /// <summary>
+        /// Ingest License Request and Encrypt
+        /// </summary>
+        /// <param name="text_to_sign"></param>
+        /// <returns></returns>
         private string GenerateSignature(string text_to_sign)
         {
-            // Ingest License Request and Encrypt 
             byte[] hash;
             using (SHA1Managed sha1 = new SHA1Managed())
             {
                 hash = sha1.ComputeHash(Encoding.ASCII.GetBytes(text_to_sign));
             }
             hash = Util.PaddningBytes(hash);
-            byte[] signature = Util.EncryptStringToBytes_Aes(hash, this._KEY, this._IV);
+            byte[] signature = Util.EncryptAes(hash, _KEY, _IV);
             string signatureBase64 = Convert.ToBase64String(signature);
             return signatureBase64;
         }
