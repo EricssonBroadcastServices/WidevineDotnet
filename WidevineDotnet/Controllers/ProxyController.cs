@@ -59,7 +59,6 @@ namespace WidevineDotnet.Controllers
             string payload = Util.ConvertToBase64(HttpContext.Request.Body);
             if (string.IsNullOrEmpty(payload))
             {
-                _logger.LogError("BadRequest", "body is empty");
                 return BadRequest("body is empty");
             }
             contentId = Request.Query.ContainsKey("contentId") ?
@@ -101,8 +100,9 @@ namespace WidevineDotnet.Controllers
             string payload = await response.Content.ReadAsStringAsync();
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogError("SendRequest", "StatusCode: " + response.StatusCode, payload);
-                throw new Exception("SendRequest StatusCode: " + response.StatusCode);
+                var exception = new Exception("SendRequest StatusCode: " + response.StatusCode);
+                _logger.LogError(exception, payload);
+                throw exception;
             }
             return payload;
         }
@@ -181,7 +181,6 @@ namespace WidevineDotnet.Controllers
         /// <returns></returns>
         private byte[] ProcessLicenseResponse(string response)
         {
-            _logger.LogInformation("License response", response);
             JObject responseObj = JObject.Parse(response);
             if (responseObj.ContainsKey("status") && responseObj["status"].ToString() == "OK")
             {
@@ -192,23 +191,36 @@ namespace WidevineDotnet.Controllers
                     if (!responseObj.ContainsKey("security_level") ||
                         string.IsNullOrEmpty(responseObj["security_level"].ToString()))
                     {
-                        _logger.LogError("No security_level", response);
+                        _logger.LogError("No security_level");
                     }
                 }
 
                 if (responseObj.ContainsKey("license"))
                 {
                     byte[] license_decoded = System.Convert.FromBase64String(responseObj["license"].ToString());
+
+                    // Log without license
+                    responseObj.Remove("license");
+                    // Use warning to not be mixed with ASP.NET unrelevant info logs.
+                    _logger.LogWarning("License response");
+                    _logger.LogWarning(Util.JsonDump(responseObj));
+
                     return license_decoded;
                 }
                 else
                 {
+                    // Use warning to not be mixed with ASP.NET unrelevant info logs.
+                    _logger.LogWarning("PARSE_ONLY request", response);
+                    _logger.LogWarning(response);
+
                     // "PARSE_ONLY request, no 'license' found."
                     return new byte[] { };
                 }
             }
-            _logger.LogError("ProcessLicenseResponse Status not OK", response);
-            throw new Exception("ProcessLicenseResponse Status not OK");
+
+            var exception = new Exception("ProcessLicenseResponse Status not OK");
+            _logger.LogError(exception, response);
+            throw exception;
         }
 
         /// <summary>
