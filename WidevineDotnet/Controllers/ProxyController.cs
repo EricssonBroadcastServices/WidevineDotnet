@@ -3,9 +3,12 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace WidevineDotnet.Controllers
@@ -49,7 +52,7 @@ namespace WidevineDotnet.Controllers
         [HttpGet]
         public ActionResult<string> Get()
         {
-            return "GET Not SupportedNone";
+            return "The Proxy accepts POST requests from CDM players using the Widevine License Exchange protocol.";
         }
 
         // POST proxy
@@ -100,7 +103,8 @@ namespace WidevineDotnet.Controllers
             string payload = await response.Content.ReadAsStringAsync();
             if (!response.IsSuccessStatusCode)
             {
-                var exception = new Exception("SendRequest StatusCode: " + response.StatusCode);
+                var exception = new Exception("SendRequest StatusCode: " + 
+                    response.StatusCode + "Message: " +payload);
                 _logger.LogError(exception, payload);
                 throw exception;
             }
@@ -121,7 +125,7 @@ namespace WidevineDotnet.Controllers
                 signature = GenerateSignature(message),
                 signer = _PROVIDER
             };
-            return Util.JsonDump(certificate_request);
+            return JsonConvert.SerializeObject(certificate_request);
         }
 
         /// <summary>
@@ -135,7 +139,7 @@ namespace WidevineDotnet.Controllers
             {
                 payload = payload
             };
-            return Util.JsonDump(request);
+            return JsonConvert.SerializeObject(request);
         }
 
         /// <summary>
@@ -152,17 +156,19 @@ namespace WidevineDotnet.Controllers
                 signature = GenerateSignature(message),
                 signer = _PROVIDER
             };
-            return Util.JsonDump(license_server_request);
+            return JsonConvert.SerializeObject(license_server_request);
         }
 
         /// <summary>
         /// Build a license request to be sent to Widevine Service. 
+        /// Policy overrides and license configurations <see cref="!:https://storage.googleapis.com/wvdocs/Widevine_DRM_Proxy_Integration.pdf">HERE</see>
         /// </summary>
         /// <param name="payload"></param>
         /// <returns></returns>
         private string BuildLicenseMessage(string payload)
         {
             string contentId64 = string.IsNullOrEmpty(contentId) ? "" : Util.Base64Encode(contentId);
+            // Add content_key_specs and policy_overrides here
             var request = new
             {
                 payload = payload,
@@ -171,7 +177,7 @@ namespace WidevineDotnet.Controllers
                 parse_only = Request.Query.ContainsKey("parseonly"),
                 content_id = contentId64
             };
-            return Util.JsonDump(request);
+            return JsonConvert.SerializeObject(request);
         }
 
         /// <summary>
@@ -194,7 +200,7 @@ namespace WidevineDotnet.Controllers
                     responseObj.Remove("license");
                     // Use warning to not be mixed with ASP.NET unrelevant info logs.
                     _logger.LogWarning("License response");
-                    _logger.LogWarning(Util.JsonDump(responseObj));
+                    _logger.LogWarning(JsonConvert.SerializeObject(responseObj));
 
                     return license_decoded;
                 }
@@ -208,8 +214,9 @@ namespace WidevineDotnet.Controllers
                     return new byte[] { };
                 }
             }
-
-            var exception = new Exception("ProcessLicenseResponse Status not OK");
+            var errorMsg = "ProcessLicenseResponse Status: " + (responseObj.ContainsKey("status") ?
+                responseObj["status"].ToString() : "No Status");
+            var exception = new Exception(errorMsg);
             _logger.LogError(exception, response);
             throw exception;
         }
@@ -247,6 +254,27 @@ namespace WidevineDotnet.Controllers
                     _logger.LogError("No security_level");
                 }
             }
+        }
+    }
+
+
+    [Route("[controller]")]
+    [ApiController]
+    public class ErrorController : Controller
+    {
+        [Route("")]
+        public IActionResult Get()
+        {
+            var message = "";
+            var exceptionFeature = HttpContext.Features.Get<IExceptionHandlerPathFeature>();
+
+            if (exceptionFeature != null)
+            {
+                Exception exceptionThatOccurred = exceptionFeature.Error;
+                message = exceptionThatOccurred.Message;
+            }
+
+            return StatusCode(StatusCodes.Status500InternalServerError, message);
         }
     }
 }

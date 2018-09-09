@@ -1,5 +1,4 @@
-﻿using Newtonsoft.Json;
-using System;
+﻿using System;
 using System.IO;
 using System.Security.Cryptography;
 
@@ -69,12 +68,6 @@ namespace WidevineDotnet
                     output[i] = Convert.ToByte(new string(new char[2] { (char)sr.Read(), (char)sr.Read() }), 16);
             }
             return output;
-        }
-
-        internal static string JsonDump(object o)
-        {
-            //Equivalent to python json.dumps
-            return JsonConvert.SerializeObject(o).Replace("\":", "\": ").Replace("\",", "\", ");
         }
 
 

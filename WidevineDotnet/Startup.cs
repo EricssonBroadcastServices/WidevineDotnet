@@ -38,6 +38,7 @@ namespace WidevineDotnet
             }
             else
             {
+                app.UseExceptionHandler("/Error");
                 app.UseHsts();
             }
 
