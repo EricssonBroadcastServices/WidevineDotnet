@@ -32,8 +32,8 @@ namespace WidevineDotnet.Controllers
         private readonly string _ALLOWED_TRACK_TYPES;
 
         // From query string if applied
-        private string contentId = "";
-        private string keyId = "";
+        private string _contentId = "";
+        private string _keyId = "";
 
         public ProxyController(ILogger<ProxyController> logger, IConfiguration Configuration)
         {
@@ -64,9 +64,9 @@ namespace WidevineDotnet.Controllers
             {
                 return BadRequest("body is empty");
             }
-            contentId = Request.Query.ContainsKey("contentId") ?
+            _contentId = Request.Query.ContainsKey("contentId") ?
                 Request.Query["contentId"].ToString() : "";
-            keyId = Request.Query.ContainsKey("keyId") ?
+            _keyId = Request.Query.ContainsKey("keyId") ?
                 Request.Query["keyId"].ToString() : "";
 
             string response;
@@ -165,7 +165,7 @@ namespace WidevineDotnet.Controllers
         /// <returns></returns>
         private string BuildLicenseMessage(string payload)
         {
-            string contentId64 = string.IsNullOrEmpty(contentId) ? "" : Util.Base64Encode(contentId);
+            string contentId64 = string.IsNullOrEmpty(_contentId) ? "" : Util.Base64Encode(_contentId);
             // Add content_key_specs and policy_overrides here
             var request = new
             {
