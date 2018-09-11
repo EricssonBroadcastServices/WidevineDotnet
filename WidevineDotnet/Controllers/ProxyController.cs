@@ -199,7 +199,7 @@ namespace WidevineDotnet.Controllers
                     // Log without license
                     responseObj.Remove("license");
                     // Use warning to not be mixed with ASP.NET unrelevant info logs.
-                    _logger.LogWarning("License response");
+                    _logger.LogWarning(responseObj["message_type"].ToString() + " response");
                     _logger.LogWarning(JsonConvert.SerializeObject(responseObj));
 
                     return license_decoded;
