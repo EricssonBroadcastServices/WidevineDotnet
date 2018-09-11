@@ -97,14 +97,12 @@ namespace WidevineDotnet.Controllers
         /// <returns></returns>
         private async Task<string> SendRequest(string request)
         {
-            HttpClient client = new HttpClient();
-            var url = _LICENSE_SERVER_URL + "/" + _PROVIDER;
-            HttpResponseMessage response = await client.PostAsync(url, new StringContent(request));
+            HttpResponseMessage response = await (new HttpClient()).PostAsync(_LICENSE_SERVER_URL + "/" + _PROVIDER, new StringContent(request));
             string payload = await response.Content.ReadAsStringAsync();
             if (!response.IsSuccessStatusCode)
             {
                 var exception = new Exception("SendRequest StatusCode: " + 
-                    response.StatusCode + "Message: " +payload);
+                    response.StatusCode + "Message: " + payload);
                 _logger.LogError(exception, payload);
                 throw exception;
             }
@@ -137,7 +135,7 @@ namespace WidevineDotnet.Controllers
         {
             var request = new
             {
-                payload = payload
+                payload
             };
             return JsonConvert.SerializeObject(request);
         }
@@ -171,7 +169,7 @@ namespace WidevineDotnet.Controllers
             // Add content_key_specs and policy_overrides here
             var request = new
             {
-                payload = payload,
+                payload,
                 provider = _PROVIDER,
                 allowed_track_types = _ALLOWED_TRACK_TYPES,
                 parse_only = Request.Query.ContainsKey("parseonly"),
@@ -187,35 +185,33 @@ namespace WidevineDotnet.Controllers
         /// <returns></returns>
         private byte[] ProcessLicenseResponse(string response)
         {
-            JObject responseObj = JObject.Parse(response);
-            if (responseObj.ContainsKey("status") && responseObj["status"].ToString() == "OK")
+            dynamic responseObj = JObject.Parse(response);
+            if (responseObj.status == "OK")
             {
                 Trace_devices_not_sending_security_level(responseObj);
 
-                if (responseObj.ContainsKey("license"))
+                if (responseObj.license != null)
                 {
-                    byte[] license_decoded = System.Convert.FromBase64String(responseObj["license"].ToString());
+                    byte[] license_decoded = Convert.FromBase64String((string) responseObj.license);
 
                     // Log without license
-                    responseObj.Remove("license");
+                    responseObj.license = "";
                     // Use warning to not be mixed with ASP.NET unrelevant info logs.
-                    _logger.LogWarning(responseObj["message_type"].ToString() + " response");
-                    _logger.LogWarning(JsonConvert.SerializeObject(responseObj));
+                    _logger.LogWarning((string) responseObj.message_type + " response");
+                    _logger.LogWarning((string) JsonConvert.SerializeObject(responseObj));
 
                     return license_decoded;
                 }
                 else
                 {
                     // Use warning to not be mixed with ASP.NET unrelevant info logs.
-                    _logger.LogWarning("PARSE_ONLY request", response);
+                    _logger.LogWarning("PARSE_ONLY request");
                     _logger.LogWarning(response);
-
                     // "PARSE_ONLY request, no 'license' found."
                     return new byte[] { };
                 }
             }
-            var errorMsg = "ProcessLicenseResponse Status: " + (responseObj.ContainsKey("status") ?
-                responseObj["status"].ToString() : "No Status");
+            var errorMsg = "ProcessLicenseResponse Status: " + responseObj.status;
             var exception = new Exception(errorMsg);
             _logger.LogError(exception, response);
             throw exception;
@@ -233,23 +229,19 @@ namespace WidevineDotnet.Controllers
             {
                 hash = sha1.ComputeHash(Encoding.ASCII.GetBytes(text_to_sign));
             }
-            hash = Util.PaddningBytes(hash);
-            byte[] signature = Util.EncryptAes(hash, _KEY, _IV);
-            string signatureBase64 = Convert.ToBase64String(signature);
-            return signatureBase64;
+            byte[] signature = Util.EncryptAes(Util.PaddningBytes(hash), _KEY, _IV);
+            return Convert.ToBase64String(signature);
         }
 
         /// <summary>
         /// Some devices don't send security level, trace this 
         /// </summary>
         /// <param name="responseObj"></param>
-        private void Trace_devices_not_sending_security_level(JObject responseObj)
+        private void Trace_devices_not_sending_security_level(dynamic responseObj)
         {
-            if (responseObj.ContainsKey("message_type") &&
-                                responseObj["message_type"].ToString() != "SERVICE_CERTIFICATE")
+            if (responseObj.message_type != "SERVICE_CERTIFICATE")
             {
-                if (!responseObj.ContainsKey("security_level") ||
-                    string.IsNullOrEmpty(responseObj["security_level"].ToString()))
+                if (responseObj.security_level == null)
                 {
                     _logger.LogError("No security_level");
                 }
